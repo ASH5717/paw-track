@@ -25,8 +25,13 @@ export function VolunteerReportsModule({ role, reports, onDecision, onSubmitRepo
     setNotes('');
   };
 
+  // Admins verify reports rather than submit them, so the intake form is
+  // only shown to volunteers (field reports) and public users (incidents).
+  const showIntakeForm = role !== 'admin';
+
   return (
-    <div className="grid lg:grid-cols-12 gap-6">
+    <div className={showIntakeForm ? 'grid lg:grid-cols-12 gap-6' : ''}>
+      {showIntakeForm && (
       <div className="lg:col-span-5 bg-white rounded-3xl p-6 border border-[#A5B99A]/40 shadow-sm h-fit">
         <h2 className="text-lg font-extrabold text-[#26332B]">
           {role === 'user' ? 'Report an Injured or Stray Animal' : 'Submit Field Report to Vets'}
@@ -111,8 +116,9 @@ export function VolunteerReportsModule({ role, reports, onDecision, onSubmitRepo
           </button>
         </form>
       </div>
+      )}
 
-      <div className="lg:col-span-7 space-y-4">
+      <div className={showIntakeForm ? 'lg:col-span-7 space-y-4' : 'space-y-4'}>
         <h3 className="text-base font-extrabold text-[#26332B]">
           Field Submissions & Approval Tracker
         </h3>

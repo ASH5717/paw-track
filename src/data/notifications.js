@@ -3,6 +3,7 @@
 export const INITIAL_NOTIFICATIONS = [
   {
     id: 'n1',
+    animal_id: 'a3',
     title: 'Critical Infectious Disease Alert',
     message: 'Simba (PT-2026-0003) flagged for Suspected Parvovirus in HSR Sector 2. Isolation protocol active.',
     type: 'critical',
@@ -11,6 +12,7 @@ export const INITIAL_NOTIFICATIONS = [
   },
   {
     id: 'n2',
+    animal_id: 'a2',
     title: 'Overdue Rabies Booster',
     message: 'Tara (PT-2026-0002) anti-rabies booster is overdue. Schedule post-recovery immunization.',
     type: 'warning',
@@ -19,6 +21,7 @@ export const INITIAL_NOTIFICATIONS = [
   },
   {
     id: 'n3',
+    animal_id: 'a1',
     title: 'New Adoption Application',
     message: 'Siddharth Kulkarni submitted an adoption application for Bholu (PT-2026-0001).',
     type: 'info',

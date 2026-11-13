@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   // Pre-bundle on startup so a new dep never triggers a mid-session reload
   optimizeDeps: {
-    include: ['qrcode.react', 'leaflet']
+    include: ['qrcode.react', 'leaflet', 'jsqr']
   },
   server: {
     // Bind dual-stack (::1 + 127.0.0.1). Without this, Vite can listen on

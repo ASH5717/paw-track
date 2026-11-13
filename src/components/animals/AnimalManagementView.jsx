@@ -2,6 +2,8 @@
 
 import { MapPin, Search, Plus, PawPrint } from 'lucide-react';
 import { StatusBadge } from '../common/StatusBadge.jsx';
+import { DogAvatar } from '../common/DogAvatar.jsx';
+import { RatingSummary } from '../common/CommunityRating.jsx';
 
 export function AnimalManagementView({
   role,
@@ -22,6 +24,7 @@ export function AnimalManagementView({
   setDisplayMode,
   onSelectAnimal,
   onOpenAdoptModal,
+  ratingSummary,
   onAddNew
 }) {
   const clearFilters = () => {
@@ -168,10 +171,11 @@ export function AnimalManagementView({
           {animals.map((a) => (
             <div
               key={a.id}
-              className="bg-white rounded-3xl overflow-hidden border border-[#A5B99A]/40 shadow-sm hover:shadow-lg transition-all flex flex-col"
+              onClick={() => onSelectAnimal(a.id)}
+              className="bg-white rounded-3xl overflow-hidden border border-[#A5B99A]/40 shadow-sm hover:shadow-lg transition-all flex flex-col cursor-pointer"
             >
               <div className="relative h-56">
-                <img src={a.photos[0]} alt={a.name} className="w-full h-full object-cover" />
+                <DogAvatar animal={a} className="w-full h-full object-cover" />
                 <span className="absolute top-3 left-3 font-mono text-xs font-extrabold px-2.5 py-1 rounded-lg bg-[#174D37] text-white">
                   {a.animal_code}
                 </span>
@@ -189,6 +193,12 @@ export function AnimalManagementView({
                     </span>
                   </div>
                   <p className="text-xs text-[#5C6B62]">{a.breed}</p>
+                  <RatingSummary
+                    value={ratingSummary?.[a.id]?.avg || 0}
+                    count={ratingSummary?.[a.id]?.count || 0}
+                    compact
+                    className="mt-2"
+                  />
                   <p className="text-xs text-[#5C6B62] flex items-center gap-1 mt-1.5">
                     <MapPin className="w-3.5 h-3.5 text-[#E8A64A]" /> {a.location_name}
                   </p>
@@ -202,14 +212,20 @@ export function AnimalManagementView({
 
                 <div className="pt-3 border-t border-stone-100 flex items-center gap-2">
                   <button
-                    onClick={() => onSelectAnimal(a.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectAnimal(a.id);
+                    }}
                     className="flex-1 py-2.5 rounded-xl bg-[#174D37] hover:bg-[#226B4D] text-white text-xs font-bold transition-colors"
                   >
                     View Profile & QR
                   </button>
                   {a.adoption_status === 'Available for Adoption' && (
                     <button
-                      onClick={() => onOpenAdoptModal(a)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenAdoptModal(a);
+                      }}
                       className="px-3.5 py-2.5 rounded-xl bg-[#E8A64A]/20 text-[#8A5408] hover:bg-[#E8A64A]/30 text-xs font-bold"
                     >
                       Adopt
@@ -230,6 +246,7 @@ export function AnimalManagementView({
                 <th className="p-4">Health</th>
                 <th className="p-4">Vaccination</th>
                 <th className="p-4">Behaviour</th>
+                <th className="p-4">Rating</th>
                 <th className="p-4">Adoption</th>
                 <th className="p-4 text-right">Action</th>
               </tr>
@@ -239,9 +256,8 @@ export function AnimalManagementView({
                 <tr key={a.id} className="hover:bg-[#FAF8F1]/60">
                   <td className="p-4">
                     <div className="flex items-center gap-3">
-                      <img
-                        src={a.photos[0]}
-                        alt={a.name}
+                      <DogAvatar
+                        animal={a}
                         className="w-10 h-10 rounded-xl object-cover"
                       />
                       <div>
@@ -261,6 +277,13 @@ export function AnimalManagementView({
                   </td>
                   <td className="p-4">
                     <StatusBadge value={a.behaviour_status} />
+                  </td>
+                  <td className="p-4">
+                    <RatingSummary
+                      value={ratingSummary?.[a.id]?.avg || 0}
+                      count={ratingSummary?.[a.id]?.count || 0}
+                      compact
+                    />
                   </td>
                   <td className="p-4">
                     <StatusBadge value={a.adoption_status} />

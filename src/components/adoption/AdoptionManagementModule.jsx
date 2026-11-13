@@ -1,6 +1,7 @@
 // PAW TRACK — Adoption pipeline management
 
 import { StatusBadge } from '../common/StatusBadge.jsx';
+import { DogAvatar } from '../common/DogAvatar.jsx';
 
 export function AdoptionManagementModule({
   role,
@@ -83,7 +84,7 @@ export function AdoptionManagementModule({
               key={a.id}
               className="bg-white rounded-3xl overflow-hidden border border-[#A5B99A]/40 shadow-sm flex flex-col"
             >
-              <img src={a.photos[0]} alt={a.name} className="w-full h-52 object-cover" />
+              <DogAvatar animal={a} className="w-full h-52 object-cover" />
               <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
                 <div>
                   <div className="flex items-center justify-between">

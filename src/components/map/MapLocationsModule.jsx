@@ -5,6 +5,7 @@ import { MapPin, Info, Layers } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { StatusBadge } from '../common/StatusBadge.jsx';
+import { DogAvatar } from '../common/DogAvatar.jsx';
 
 const BENGALURU_CENTER = [12.9716, 77.5946];
 const PAW_SVG =
@@ -203,9 +204,8 @@ export function MapLocationsModule({ animals, onSelectAnimal, notify }) {
         <div className="lg:col-span-4 bg-white rounded-3xl p-6 border border-[#A5B99A]/40 shadow-sm flex flex-col justify-between">
           {activePin ? (
             <div className="space-y-4">
-              <img
-                src={activePin.photos[0]}
-                alt={activePin.name}
+              <DogAvatar
+                animal={activePin}
                 className="w-full h-44 rounded-2xl object-cover"
               />
               <div>

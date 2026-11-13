@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { StatusBadge } from '../common/StatusBadge.jsx';
+import { DogAvatar } from '../common/DogAvatar.jsx';
 
 export function BehaviourMonitoringModule({ role, animals, onSelectAnimal, onAddBehaviour }) {
   const [selectedId, setSelectedId] = useState(animals[0]?.id || '');
@@ -114,7 +115,7 @@ export function BehaviourMonitoringModule({ role, animals, onSelectAnimal, onAdd
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <img src={a.photos[0]} alt={a.name} className="w-12 h-12 rounded-xl object-cover" />
+                <DogAvatar animal={a} className="w-12 h-12 rounded-xl object-cover" />
                 <div>
                   <p className="font-mono text-xs font-bold text-[#174D37]">{a.animal_code}</p>
                   <h4 className="font-extrabold text-[#26332B]">{a.name}</h4>

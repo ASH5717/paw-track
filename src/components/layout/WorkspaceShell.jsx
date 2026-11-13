@@ -2,11 +2,12 @@
 
 import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, MapPin, Activity, Plus, AlertTriangle, FileText, Bell, Settings, LogOut, Menu, X, Stethoscope, PawPrint, Navigation, LayoutDashboard, Database, UserCheck, ClipboardList } from 'lucide-react';
+import { Heart, MapPin, Activity, Plus, AlertTriangle, FileText, Bell, Settings, LogOut, Menu, X, Stethoscope, PawPrint, Navigation, LayoutDashboard, Database, UserCheck, ClipboardList, ScanLine, Utensils } from 'lucide-react';
 import { AdoptionManagementModule } from '../adoption/AdoptionManagementModule.jsx';
 import { AnimalManagementView } from '../animals/AnimalManagementView.jsx';
 import { RegisterAnimalForm } from '../animals/RegisterAnimalForm.jsx';
 import { BehaviourMonitoringModule } from '../behaviour/BehaviourMonitoringModule.jsx';
+import { FeedingGroupsModule } from '../feeding/FeedingGroupsModule.jsx';
 import { PawTrackLogo } from '../common/PawTrackLogo.jsx';
 import { DashboardOverview } from '../dashboard/DashboardOverview.jsx';
 import { MapLocationsModule } from '../map/MapLocationsModule.jsx';
@@ -15,11 +16,14 @@ import { NotificationsCenter } from '../notifications/NotificationsCenter.jsx';
 import { ReportsAnalyticsModule } from '../reports/ReportsAnalyticsModule.jsx';
 import { DatabaseSchemaSettings } from '../settings/DatabaseSchemaSettings.jsx';
 import { VolunteerReportsModule } from '../volunteers/VolunteerReportsModule.jsx';
+import { VolunteerManagementModule } from '../volunteers/VolunteerManagementModule.jsx';
 
 export function WorkspaceShell({
   currentUser,
   onLogout,
   onGoHome,
+  onOpenQuickReport,
+  onOpenScanner,
   activeTab,
   setActiveTab,
   sidebarOpen,
@@ -49,14 +53,25 @@ export function WorkspaceShell({
   onAddMedical,
   onAddVaccination,
   onAddBehaviour,
+  groups,
+  onCreateGroup,
+  onUpdateGroup,
+  onDeleteGroup,
+  onMarkGroupFed,
   adoptions,
   onAdoptionDecision,
   onOpenAdoptModal,
   volunteerReports,
+  volunteers,
+  onRemoveVolunteer,
+  ratingSummary,
+  onRateAnimal,
   onVolunteerReportDecision,
   onSubmitVolunteerReport,
   notifications,
   onMarkAllRead,
+  onMarkRead,
+  onDismiss,
   activityLogs,
   onExportCSV,
   notify
@@ -69,11 +84,12 @@ export function WorkspaceShell({
       return [
         { id: 'overview', label: 'Dashboard Overview', icon: LayoutDashboard },
         { id: 'animals', label: 'Animal Management', icon: PawPrint },
+        { id: 'feedingGroups', label: 'Feeding Groups', icon: Utensils },
         { id: 'register', label: 'Register New Animal', icon: Plus },
         { id: 'medical', label: 'Medical & Vaccination', icon: Stethoscope, badge: 'Priority' },
         { id: 'behaviour', label: 'Behaviour Monitoring', icon: Activity },
         { id: 'adoption', label: 'Adoption Management', icon: Heart },
-        { id: 'volunteers', label: 'Volunteer Approvals', icon: UserCheck },
+        { id: 'volunteers', label: 'Volunteers & Approvals', icon: UserCheck },
         { id: 'map', label: 'Map & Locations', icon: MapPin },
         { id: 'notifications', label: 'Notifications', icon: Bell, count: stats.unreadNotifications },
         { id: 'reports', label: 'Reports & Analytics', icon: FileText },
@@ -84,6 +100,7 @@ export function WorkspaceShell({
       return [
         { id: 'overview', label: 'Volunteer Dashboard', icon: LayoutDashboard },
         { id: 'animals', label: 'Community Animals', icon: PawPrint },
+        { id: 'feedingGroups', label: 'Feeding Groups', icon: Utensils },
         { id: 'register', label: 'Submit New Animal', icon: Plus },
         { id: 'behaviour', label: 'Submit Observation', icon: Activity },
         { id: 'volunteers', label: 'My Field Reports', icon: ClipboardList },
@@ -101,7 +118,7 @@ export function WorkspaceShell({
   }, [role, stats.unreadNotifications]);
 
   return (
-    <div className="min-h-screen flex bg-[#FAF8F1]">
+    <div className="h-screen flex overflow-hidden bg-[#FAF8F1]">
       {/* DESKTOP COLLAPSIBLE SIDEBAR */}
       <aside
         className={`hidden lg:flex flex-col bg-white border-r border-[#A5B99A]/40 transition-all duration-300 shrink-0 ${
@@ -243,9 +260,9 @@ export function WorkspaceShell({
       </AnimatePresence>
 
       {/* MAIN CONTENT AREA */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto">
         {/* TOP WORKSPACE HEADER */}
-        <header className="h-20 bg-white/90 backdrop-blur-md border-b border-[#A5B99A]/30 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">
+        <header className="h-20 shrink-0 bg-white/90 backdrop-blur-md border-b border-[#A5B99A]/30 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileMenuOpen(true)}
@@ -265,6 +282,21 @@ export function WorkspaceShell({
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={onOpenScanner}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-[#174D37] bg-[#E8EFE5] hover:bg-[#D9E6D4] border border-[#A5B99A]/50 transition-all"
+              title="Scan an animal QR tag"
+            >
+              <ScanLine className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Scan QR</span>
+            </button>
+            <button
+              onClick={onOpenQuickReport}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 transition-all"
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Report Injured Animal</span>
+            </button>
             {role !== 'user' && (
               <button
                 onClick={() => setActiveTab('register')}
@@ -324,7 +356,22 @@ export function WorkspaceShell({
               setDisplayMode={setDisplayMode}
               onSelectAnimal={onSelectAnimal}
               onOpenAdoptModal={onOpenAdoptModal}
+              ratingSummary={ratingSummary}
+              onRateAnimal={onRateAnimal}
               onAddNew={() => setActiveTab('register')}
+            />
+          )}
+
+          {activeTab === 'feedingGroups' && (
+            <FeedingGroupsModule
+              role={role}
+              groups={groups}
+              animals={animals}
+              onSelectAnimal={onSelectAnimal}
+              onCreateGroup={onCreateGroup}
+              onUpdateGroup={onUpdateGroup}
+              onDeleteGroup={onDeleteGroup}
+              onMarkFed={onMarkGroupFed}
             />
           )}
 
@@ -369,12 +416,20 @@ export function WorkspaceShell({
           )}
 
           {activeTab === 'volunteers' && (
-            <VolunteerReportsModule
-              role={role}
-              reports={volunteerReports}
-              onDecision={onVolunteerReportDecision}
-              onSubmitReport={onSubmitVolunteerReport}
-            />
+            <div className="space-y-8">
+              {role === 'admin' && (
+                <VolunteerManagementModule
+                  volunteers={volunteers}
+                  onRemoveVolunteer={onRemoveVolunteer}
+                />
+              )}
+              <VolunteerReportsModule
+                role={role}
+                reports={volunteerReports}
+                onDecision={onVolunteerReportDecision}
+                onSubmitReport={onSubmitVolunteerReport}
+              />
+            </div>
           )}
 
           {activeTab === 'map' && (
@@ -389,6 +444,9 @@ export function WorkspaceShell({
             <NotificationsCenter
               notifications={notifications}
               onMarkAllRead={onMarkAllRead}
+              onMarkRead={onMarkRead}
+              onDismiss={onDismiss}
+              onSelectAnimal={onSelectAnimal}
             />
           )}
 

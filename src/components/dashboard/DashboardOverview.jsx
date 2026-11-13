@@ -4,6 +4,7 @@ import { Heart, Activity, Syringe, Search, AlertTriangle, Stethoscope, PawPrint 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { ANALYTICS_MONTHLY } from '../../data/analytics.js';
 import { StatusBadge } from '../common/StatusBadge.jsx';
+import { DogAvatar } from '../common/DogAvatar.jsx';
 
 export function DashboardOverview({
   role,
@@ -67,7 +68,7 @@ export function DashboardOverview({
                 key={a.id}
                 className="bg-white rounded-3xl overflow-hidden border border-[#A5B99A]/40 shadow-sm"
               >
-                <img src={a.photos[0]} alt={a.name} className="w-full h-52 object-cover" />
+                <DogAvatar animal={a} className="w-full h-52 object-cover" />
                 <div className="p-5 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="font-mono text-xs font-bold text-[#174D37]">{a.animal_code}</span>

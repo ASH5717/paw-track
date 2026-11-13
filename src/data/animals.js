@@ -387,3 +387,18 @@ export const INITIAL_ANIMALS = [
     ]
   }
 ];
+
+// Community ratings: { [animalId]: [stars, ...] }. A dog's rating is the
+// average of every star it has received.
+export const INITIAL_RATINGS = {
+  a1: [5, 4, 5, 5],
+  a2: [4, 5],
+  a3: [4, 3, 4],
+  a4: [5, 5, 4],
+  a5: [3, 4],
+  a6: []
+};
+
+// Average of a list of star ratings (0 when unrated).
+export const averageRating = (stars) =>
+  stars && stars.length ? stars.reduce((sum, n) => sum + n, 0) / stars.length : 0;

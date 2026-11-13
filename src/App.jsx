@@ -6,19 +6,57 @@ import { Search, Filter, CheckCircle2, Users, Navigation } from 'lucide-react';
 import { AdoptionModal } from './components/adoption/AdoptionModal.jsx';
 import { AnimalProfileModal } from './components/animals/AnimalProfileModal.jsx';
 import { AuthPortal } from './components/auth/AuthPortal.jsx';
+import { QRScannerModal } from './components/common/QRScannerModal.jsx';
 import { LandingPage } from './components/landing/LandingPage.jsx';
 import { WorkspaceShell } from './components/layout/WorkspaceShell.jsx';
 import { QuickIncidentModal } from './components/volunteers/QuickIncidentModal.jsx';
 import { COLORS } from './constants/theme.js';
 import { INITIAL_ADOPTIONS } from './data/adoptions.js';
-import { INITIAL_ANIMALS } from './data/animals.js';
+import { INITIAL_ANIMALS, INITIAL_RATINGS, averageRating } from './data/animals.js';
+import { INITIAL_GROUPS } from './data/groups.js';
 import { INITIAL_NOTIFICATIONS } from './data/notifications.js';
 import { INITIAL_VOLUNTEER_REPORTS } from './data/volunteerReports.js';
+import { INITIAL_VOLUNTEERS } from './data/volunteers.js';
+import { supabase, isSupabaseConfigured } from './lib/supabase.js';
+import { isAdminEmail, OWNER_EMAIL } from './lib/adminAccess.js';
+
+// Demo mode has no backend session, so the signed-in user is remembered in
+// localStorage and restored on refresh — the user stays logged in until they
+// sign out. With Supabase configured the SDK restores its own session instead.
+const SESSION_KEY = 'pawtrack.session.user';
+
+const readStoredUser = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    return parsed && parsed.email && parsed.role ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+// Map a Supabase auth user onto the app's internal user shape. The role comes
+// from the server-side admin allow-list, so a grant made by the owner takes
+// effect on that person's next request.
+const buildUserFromSession = async (user) => {
+  if (!user) return null;
+  const meta = user.user_metadata || {};
+  const requested = ['admin', 'volunteer', 'user'].includes(meta.role) ? meta.role : 'user';
+  return {
+    name: meta.full_name || user.email?.split('@')[0] || 'PAW TRACK User',
+    email: user.email,
+    role: (await isAdminEmail(user.email)) ? 'admin' : requested,
+    org: meta.org || 'Community Member'
+  };
+};
 
 export default function App() {
+  // Remembered session from the last visit (demo mode only). Restored
+  // synchronously so a refresh keeps the user signed in without a flash.
+  const restoredUser = useMemo(() => (supabase ? null : readStoredUser()), []);
+
   // Core Navigation & Auth State
-  const [view, setView] = useState('landing'); // 'landing' | 'auth' | 'app'
-  const [currentUser, setCurrentUser] = useState(null); // { name, email, role: 'admin'|'volunteer'|'user', org }
+  const [view, setView] = useState(restoredUser ? 'app' : 'landing'); // 'landing' | 'auth' | 'app'
+  const [currentUser, setCurrentUser] = useState(restoredUser); // { name, email, role: 'admin'|'volunteer'|'user', org }
   const [authRoleCard, setAuthRoleCard] = useState(null); // null | 'admin' | 'volunteer' | 'user'
   const [authMode, setAuthMode] = useState('login'); // 'login' | 'register' | 'forgot'
   const [showPassword, setShowPassword] = useState(false);
@@ -30,8 +68,11 @@ export default function App() {
 
   // Domain Data State (Live Interactive CRUD)
   const [animals, setAnimals] = useState(INITIAL_ANIMALS);
+  const [ratings, setRatings] = useState(INITIAL_RATINGS);
   const [adoptions, setAdoptions] = useState(INITIAL_ADOPTIONS);
   const [volunteerReports, setVolunteerReports] = useState(INITIAL_VOLUNTEER_REPORTS);
+  const [volunteers, setVolunteers] = useState(INITIAL_VOLUNTEERS);
+  const [groups, setGroups] = useState(INITIAL_GROUPS);
   const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
   const [activityLogs, setActivityLogs] = useState([
     { id: 'l1', time: 'Today, 16:45', actor: 'Dr. Kavita Rao', action: 'Flagged PT-2026-0003 (Simba) for Parvovirus isolation protocol' },
@@ -49,11 +90,14 @@ export default function App() {
   // Quick Report Modal (For Public Users & Volunteers)
   const [reportModalOpen, setReportModalOpen] = useState(false);
 
+  // QR Scanner Modal (available to every signed-in role)
+  const [scannerOpen, setScannerOpen] = useState(false);
+
   // --- Browser history integration -----------------------------------
   // Mirrors in-app navigation into history entries so the browser
   // back/forward buttons move between views, sidebar tabs and modals.
   const navStateRef = useRef({
-    view: 'landing',
+    view: restoredUser ? 'app' : 'landing',
     tab: 'overview',
     animalId: null,
     adoptAnimal: null,
@@ -63,6 +107,18 @@ export default function App() {
 
   useEffect(() => {
     userRef.current = currentUser;
+  }, [currentUser]);
+
+  // Persist the demo-mode session so a refresh restores the signed-in user.
+  // Signing out clears it.
+  useEffect(() => {
+    if (supabase) return;
+    try {
+      if (currentUser) localStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
+      else localStorage.removeItem(SESSION_KEY);
+    } catch {
+      /* storage blocked — the session simply won't survive a refresh */
+    }
   }, [currentUser]);
 
   // Record a navigation step. 'push' adds an entry, 'replace' overwrites
@@ -102,6 +158,31 @@ export default function App() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // --- Supabase session restore (skipped entirely in demo mode) --------
+  useEffect(() => {
+    if (!supabase) return undefined;
+
+    let active = true;
+    supabase.auth.getSession().then(async ({ data }) => {
+      const user = await buildUserFromSession(data.session?.user);
+      if (!active || !user) return;
+      setCurrentUser(user);
+      setView('app');
+      setActiveTab('overview');
+    });
+
+    // Only sign-out is handled here. Signing in is handled explicitly so the
+    // admin allow-list can be checked once the session exists.
+    const { data: listener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') setCurrentUser(null);
+    });
+
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   // Toast Feedback System
@@ -159,10 +240,10 @@ export default function App() {
       ).length,
       availableAdoption: animals.filter((a) => a.adoption_status === 'Available for Adoption').length,
       adopted: animals.filter((a) => a.adoption_status === 'Adopted').length + 47,
-      activeVolunteers: 64,
+      activeVolunteers: volunteers.filter((v) => v.status === 'Active').length,
       unreadNotifications: notifications.filter((n) => n.unread).length
     };
-  }, [animals, notifications]);
+  }, [animals, notifications, volunteers]);
 
   // Instant Role Login Handler
   const handleQuickRoleLogin = (role, customName, customEmail) => {
@@ -196,7 +277,85 @@ export default function App() {
     );
   };
 
+  // Credential auth. Uses Supabase when configured, otherwise falls back
+  // to the one-click demo login so the app stays fully usable.
+  const handleEmailAuth = async ({ mode, role, email, password, fullName }) => {
+    const declined = () => ({
+      ok: false,
+      error: `Admin access is restricted to ${OWNER_EMAIL}. Sign in there to grant admin rights to ${email}.`
+    });
+
+    // Demo mode — no backend, so the allow-list is read from local storage
+    if (!supabase) {
+      if (mode === 'forgot') {
+        return { ok: true, message: `Password recovery instructions sent to ${email}.` };
+      }
+      const grantedRole = (await isAdminEmail(email)) ? 'admin' : role === 'admin' ? null : role;
+      if (!grantedRole) return declined();
+      handleQuickRoleLogin(grantedRole, fullName || undefined, email || undefined);
+      return { ok: true, demo: true };
+    }
+
+    try {
+      if (mode === 'forgot') {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin
+        });
+        if (error) throw error;
+        return { ok: true, message: `Password recovery link sent to ${email}.` };
+      }
+
+      if (mode === 'register') {
+        // Admin rights are never self-declared — the owner grants them later
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { full_name: fullName || '', role: role === 'admin' ? 'user' : role } }
+        });
+        if (error) throw error;
+        if (!data.session) {
+          return {
+            ok: true,
+            message: `Confirmation link sent to ${email}. Verify your email, then sign in.`
+          };
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      }
+
+      // Authorize only once the session exists, so the allow-list is read
+      // through RLS instead of being trusted from the client.
+      const {
+        data: { user: authUser }
+      } = await supabase.auth.getUser();
+      const grantedRole = (await isAdminEmail(authUser?.email))
+        ? 'admin'
+        : role === 'admin'
+        ? null
+        : role;
+      if (!grantedRole) {
+        await supabase.auth.signOut();
+        return declined();
+      }
+
+      const user = await buildUserFromSession(authUser);
+      setCurrentUser(user);
+      setView('app');
+      setActiveTab('overview');
+      commitNav({ view: 'app', tab: 'overview', animalId: null, adoptAnimal: null, reportOpen: false });
+      notify(
+        `Welcome, ${user.name.split(' ')[0]}!`,
+        `Signed in with ${user.role.toUpperCase()} privileges.`
+      );
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err?.message || 'Authentication failed. Please try again.' };
+    }
+  };
+
   const handleLogout = () => {
+    if (supabase) supabase.auth.signOut().catch(() => {});
     setCurrentUser(null);
     setView('landing');
     setAuthRoleCard(null);
@@ -248,6 +407,7 @@ export default function App() {
     setNotifications((prev) => [
       {
         id: 'n' + Date.now(),
+        animal_id: created.id,
         title: 'New Animal Registered',
         message: `${created.name} (${created.animal_code}) registered at ${created.location_name}.`,
         type: 'info',
@@ -292,6 +452,7 @@ export default function App() {
       setNotifications((prev) => [
         {
           id: 'n' + Date.now(),
+          animal_id: animalId,
           title: `ALERT: ${record.disease_flag}`,
           message: `Veterinary escalation triggered for animal ID ${animalId}. Isolation required.`,
           type: 'critical',
@@ -358,6 +519,136 @@ export default function App() {
     );
   };
 
+  // Update registry details & status fields (Admin / Volunteer)
+  const handleUpdateAnimal = (animalId, patch) => {
+    setAnimals((prev) =>
+      prev.map((a) =>
+        a.id === animalId ? { ...a, ...patch, updated_at: new Date().toISOString().split('T')[0] } : a
+      )
+    );
+    notify('Registry Updated', 'Animal details and status saved.');
+  };
+
+  // Delete a record everywhere: registry, feeding groups & adoption applications
+  const handleDeleteAnimal = (animalId) => {
+    const animal = animals.find((a) => a.id === animalId);
+    setAnimals((prev) => prev.filter((a) => a.id !== animalId));
+    setGroups((prev) =>
+      prev.map((g) => ({ ...g, animal_ids: g.animal_ids.filter((id) => id !== animalId) }))
+    );
+    setAdoptions((prev) => prev.filter((ad) => ad.animal_id !== animalId));
+    if (selectedAnimalId === animalId) {
+      setSelectedAnimalId(null);
+      commitNav({ animalId: null });
+    }
+    notify('Animal Removed', `${animal?.name || 'Record'} was deleted from the registry.`);
+  };
+
+  // Community feeding log (any signed-in role)
+  const handleAddFeedingLog = (animalId, entry) => {
+    setAnimals((prev) =>
+      prev.map((a) => {
+        if (a.id !== animalId) return a;
+        return {
+          ...a,
+          updated_at: new Date().toISOString().split('T')[0],
+          feeding_logs: [
+            { id: 'f' + Date.now(), fed_by: currentUser?.name || 'Community Feeder', ...entry },
+            ...(a.feeding_logs || [])
+          ]
+        };
+      })
+    );
+    notify('Feeding Logged', `${entry.food_type || 'Meal'} recorded for ${entry.date}.`);
+  };
+
+  // Resolve a scanned QR value (full tag link or a raw Animal ID) to a profile
+  const handleScanResult = (raw) => {
+    const text = String(raw || '').trim();
+    const fromUrl = text.match(/animal\/([A-Za-z0-9-]+)/i);
+    const rawCode = text.match(/\b(PT-\d{4}-\d{4})\b/i);
+    const code = (fromUrl?.[1] || rawCode?.[1] || text).toUpperCase();
+    const animal = animals.find(
+      (a) =>
+        a.animal_code.toUpperCase() === code ||
+        a.name.toUpperCase() === code ||
+        a.id.toUpperCase() === code
+    );
+    if (!animal) {
+      notify('No Match', `No animal record found for "${text || 'empty QR'}".`);
+      return;
+    }
+    setScannerOpen(false);
+    setSelectedAnimalId(animal.id);
+    setProfileTab('Overview');
+    commitNav({ animalId: animal.id });
+    notify('Animal Found', `${animal.name} (${animal.animal_code}) profile opened.`);
+  };
+
+  // Feeding groups (Admin / Volunteer) — batch feed a cluster of dogs
+  const handleCreateGroup = ({ name, description, animal_ids }) => {
+    const group = {
+      id: 'g' + Date.now(),
+      name,
+      description,
+      animal_ids,
+      created_by: currentUser?.name || 'Staff',
+      created_at: new Date().toISOString().split('T')[0],
+      last_fed_at: null,
+      last_fed_by: null,
+      feed_count: 0
+    };
+    setGroups((prev) => [group, ...prev]);
+    notify('Group Created', `${group.name} groups ${animal_ids.length} animal(s).`);
+  };
+
+  const handleDeleteGroup = (groupId) => {
+    setGroups((prev) => prev.filter((g) => g.id !== groupId));
+    notify('Group Removed', 'Feeding group deleted.');
+  };
+
+  const handleUpdateGroup = (groupId, patch) => {
+    setGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, ...patch } : g)));
+    notify('Group Updated', 'Group details saved.');
+  };
+
+  const handleMarkGroupFed = (groupId, entry) => {
+    const group = groups.find((g) => g.id === groupId);
+    if (!group) return;
+    const date = new Date().toISOString().split('T')[0];
+    const fedBy = currentUser?.name || 'Community Feeder';
+    setAnimals((prev) =>
+      prev.map((a) => {
+        if (!group.animal_ids.includes(a.id)) return a;
+        return {
+          ...a,
+          updated_at: date,
+          feeding_logs: [
+            {
+              id: 'f' + Date.now() + a.id,
+              fed_by: fedBy,
+              group: group.name,
+              date,
+              ...entry
+            },
+            ...(a.feeding_logs || [])
+          ]
+        };
+      })
+    );
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.id === groupId
+          ? { ...g, last_fed_at: date, last_fed_by: fedBy, feed_count: (g.feed_count || 0) + 1 }
+          : g
+      )
+    );
+    notify(
+      'Group Fed',
+      `${group.name} marked as fed for ${group.animal_ids.length} animal(s) by ${fedBy}.`
+    );
+  };
+
   // Submit Adoption Application
   const handleAdoptionSubmit = (formData) => {
     const newApp = {
@@ -373,6 +664,7 @@ export default function App() {
     setNotifications((prev) => [
       {
         id: 'n' + Date.now(),
+        animal_id: formData.animal_id,
         title: 'Adoption Application Received',
         message: `${formData.applicant_name} applied to adopt ${formData.animal_name} (${formData.animal_code}).`,
         type: 'info',
@@ -412,6 +704,47 @@ export default function App() {
     );
     notify(`Report ${decision}`, 'Volunteer submission status updated.');
   };
+
+  // Remove a Volunteer from the directory (Admin)
+  const handleRemoveVolunteer = (volunteerId) => {
+    const volunteer = volunteers.find((v) => v.id === volunteerId);
+    setVolunteers((prev) => prev.filter((v) => v.id !== volunteerId));
+    setActivityLogs((prev) => [
+      {
+        id: 'l' + Date.now(),
+        time: 'Just now',
+        actor: currentUser?.name || 'System',
+        action: `Removed volunteer ${volunteer?.name || volunteerId} from the directory`
+      },
+      ...prev
+    ]);
+    notify('Volunteer Removed', `${volunteer?.name || 'Volunteer'} no longer has volunteer access.`);
+  };
+
+  // Rate an animal (1-5 stars). The dog's rating is the average of all votes.
+  const handleRateAnimal = (animalId, stars) => {
+    if (!stars || stars < 1 || stars > 5) return;
+    const animal = animals.find((a) => a.id === animalId);
+    setRatings((prev) => ({
+      ...prev,
+      [animalId]: [...(prev[animalId] || []), stars]
+    }));
+    const next = [...(ratings[animalId] || []), stars];
+    notify(
+      'Thanks for rating!',
+      `You rated ${animal?.name || 'this dog'} ${stars}/5 — new average ${averageRating(next).toFixed(1)}/5.`
+    );
+  };
+
+  // Average rating lookup for cards / lists: { [animalId]: { avg, count } }
+  const ratingSummary = useMemo(() => {
+    const summary = {};
+    animals.forEach((a) => {
+      const stars = ratings[a.id] || [];
+      summary[a.id] = { avg: averageRating(stars), count: stars.length };
+    });
+    return summary;
+  }, [animals, ratings]);
 
   // Export CSV Report
   const handleExportCSV = () => {
@@ -500,6 +833,8 @@ export default function App() {
             commitNav({ view: 'landing' });
           }}
           onSuccessLogin={handleQuickRoleLogin}
+          onEmailAuth={handleEmailAuth}
+          supabaseEnabled={isSupabaseConfigured}
           notify={notify}
         />
       )}
@@ -512,6 +847,11 @@ export default function App() {
             setView('landing');
             commitNav({ view: 'landing' });
           }}
+          onOpenQuickReport={() => {
+            setReportModalOpen(true);
+            commitNav({ reportOpen: true });
+          }}
+          onOpenScanner={() => setScannerOpen(true)}
           activeTab={activeTab}
           setActiveTab={(tab) => {
             setActiveTab(tab);
@@ -548,6 +888,11 @@ export default function App() {
           onAddMedical={handleAddMedicalRecord}
           onAddVaccination={handleAddVaccination}
           onAddBehaviour={handleAddBehaviourLog}
+          groups={groups}
+          onCreateGroup={handleCreateGroup}
+          onUpdateGroup={handleUpdateGroup}
+          onDeleteGroup={handleDeleteGroup}
+          onMarkGroupFed={handleMarkGroupFed}
           adoptions={adoptions}
           onAdoptionDecision={handleAdoptionDecision}
           onOpenAdoptModal={(animal) => {
@@ -555,6 +900,10 @@ export default function App() {
             commitNav({ adoptAnimal: animal });
           }}
           volunteerReports={volunteerReports}
+          volunteers={volunteers}
+          onRemoveVolunteer={handleRemoveVolunteer}
+          ratingSummary={ratingSummary}
+          onRateAnimal={handleRateAnimal}
           onVolunteerReportDecision={handleVolunteerReportDecision}
           onSubmitVolunteerReport={(rep) => {
             setVolunteerReports((prev) => [
@@ -573,6 +922,10 @@ export default function App() {
           onMarkAllRead={() =>
             setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })))
           }
+          onMarkRead={(id, unread) =>
+            setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, unread } : n)))
+          }
+          onDismiss={(id) => setNotifications((prev) => prev.filter((n) => n.id !== id))}
           activityLogs={activityLogs}
           onExportCSV={handleExportCSV}
           notify={notify}
@@ -599,6 +952,21 @@ export default function App() {
             onAddMedical={handleAddMedicalRecord}
             onAddVaccination={handleAddVaccination}
             onAddBehaviour={handleAddBehaviourLog}
+            onUpdateAnimal={handleUpdateAnimal}
+            onAddFeeding={handleAddFeedingLog}
+            onDeleteAnimal={handleDeleteAnimal}
+            ratings={ratings[selectedAnimal.id] || []}
+            onRate={(stars) => handleRateAnimal(selectedAnimal.id, stars)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* QR SCANNER MODAL (ANY SIGNED-IN ROLE) */}
+      <AnimatePresence>
+        {scannerOpen && (
+          <QRScannerModal
+            onClose={() => setScannerOpen(false)}
+            onScan={handleScanResult}
           />
         )}
       </AnimatePresence>

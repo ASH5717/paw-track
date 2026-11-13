@@ -14,11 +14,15 @@ export function AuthPortal({
   setShowPassword,
   onBack,
   onSuccessLogin,
+  onEmailAuth,
+  supabaseEnabled,
   notify
 }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [authError, setAuthError] = useState('');
 
   const roleCards = [
     {
@@ -62,14 +66,29 @@ export function AuthPortal({
     }
   ];
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (authMode === 'forgot') {
-      notify('Reset Link Sent', `Password recovery instructions sent to ${email}.`);
-      setAuthMode('login');
-      return;
+    setAuthError('');
+    setSubmitting(true);
+    try {
+      const result = await onEmailAuth({
+        mode: authMode,
+        role: selectedRole,
+        email,
+        password,
+        fullName
+      });
+      if (!result?.ok) {
+        setAuthError(result?.error || 'Authentication failed. Please try again.');
+        return;
+      }
+      if (result.message) {
+        notify(authMode === 'forgot' ? 'Recovery Link Sent' : 'Check Your Email', result.message);
+        if (authMode === 'forgot') setAuthMode('login');
+      }
+    } finally {
+      setSubmitting(false);
     }
-    onSuccessLogin(selectedRole, fullName || undefined, email || undefined);
   };
 
   return (
@@ -175,6 +194,13 @@ export function AuthPortal({
               </h2>
             </div>
 
+            {!supabaseEnabled && (
+              <div className="mb-4 px-3.5 py-2.5 rounded-xl bg-[#E8A64A]/15 border border-[#E8A64A]/40 text-[11px] font-semibold text-[#8A5408]">
+                Demo mode — no Supabase keys found in .env, so signing in with credentials
+                grants one-click demo access.
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               {authMode === 'register' && (
                 <div>
@@ -236,11 +262,20 @@ export function AuthPortal({
                 </div>
               )}
 
+              {authError && (
+                <div className="px-3.5 py-2.5 rounded-xl bg-red-50 border border-red-200 text-xs font-semibold text-red-700">
+                  {authError}
+                </div>
+              )}
+
               <button
                 type="submit"
-                className="w-full py-3 rounded-xl bg-[#174D37] hover:bg-[#226B4D] text-white font-bold text-sm shadow-md transition-all"
+                disabled={submitting}
+                className="w-full py-3 rounded-xl bg-[#174D37] hover:bg-[#226B4D] text-white font-bold text-sm shadow-md transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {authMode === 'login'
+                {submitting
+                  ? 'Please wait…'
+                  : authMode === 'login'
                   ? 'Sign In'
                   : authMode === 'register'
                   ? 'Register Account'

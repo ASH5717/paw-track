@@ -6,6 +6,7 @@ import { Shield, Heart, MapPin, Syringe, Search, CheckCircle2, AlertTriangle, Cl
 import { AnimatedCounter } from '../common/AnimatedCounter.jsx';
 import { PawTrackLogo } from '../common/PawTrackLogo.jsx';
 import { StatusBadge } from '../common/StatusBadge.jsx';
+import { DogAvatar } from '../common/DogAvatar.jsx';
 
 export function LandingPage({
   animals,
@@ -494,9 +495,8 @@ export function LandingPage({
                 className="bg-white rounded-3xl overflow-hidden border border-[#A5B99A]/40 shadow-sm hover:shadow-xl transition-all flex flex-col"
               >
                 <div className="relative h-64 overflow-hidden">
-                  <img
-                    src={animal.photos[0]}
-                    alt={animal.name}
+                  <DogAvatar
+                    animal={animal}
                     className="w-full h-full object-cover"
                   />
                   <span className="absolute top-3.5 left-3.5 font-mono text-xs font-bold px-2.5 py-1 rounded-lg bg-[#174D37]/90 text-white backdrop-blur-sm">

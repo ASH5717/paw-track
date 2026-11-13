@@ -1,9 +1,50 @@
 // PAW TRACK — Animal profile drawer (5 tabs + QR)
 
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { MapPin, X } from 'lucide-react';
+import { MapPin, X, Pencil, Utensils, Trash2 } from 'lucide-react';
 import { AnimalQRCode } from '../common/AnimalQRCode.jsx';
+import { DogAvatar } from '../common/DogAvatar.jsx';
 import { StatusBadge } from '../common/StatusBadge.jsx';
+import { RatingScale, RatingSummary } from '../common/CommunityRating.jsx';
+import { averageRating } from '../../data/animals.js';
+
+const HEALTH_OPTIONS = ['Healthy', 'Under Treatment', 'Critical Attention'];
+const VACCINATION_OPTIONS = [
+  'Vaccinated',
+  'Partially Vaccinated',
+  'Overdue',
+  'Verification Required'
+];
+const BEHAVIOUR_OPTIONS = ['Friendly', 'Calm', 'Shy', 'Fearful', 'Aggressive'];
+const ADOPTION_OPTIONS = [
+  'Available for Adoption',
+  'Pending Adoption',
+  'Adopted',
+  'Under Medical Treatment',
+  'Not Available'
+];
+const FOOD_OPTIONS = [
+  'Dry Kibble',
+  'Cooked Rice & Chicken',
+  'Milk & Biscuits',
+  'Wet Food',
+  'Water Refill'
+];
+
+const todayIso = () => new Date().toISOString().split('T')[0];
+
+const blankFeed = () => ({
+  food_type: FOOD_OPTIONS[0],
+  quantity: '1 meal',
+  date: todayIso(),
+  notes: ''
+});
+
+const inputClass =
+  'w-full px-3 py-2 rounded-xl bg-[#FAF8F1] border border-[#A5B99A]/50 text-sm focus:outline-none focus:border-[#174D37]';
+
+const labelClass = 'text-[11px] font-bold text-[#5C6B62]';
 
 export function AnimalProfileModal({
   animal,
@@ -11,10 +52,65 @@ export function AnimalProfileModal({
   setActiveTab,
   currentUser,
   onClose,
-  onOpenAdopt
+  onOpenAdopt,
+  onUpdateAnimal,
+  onAddFeeding,
+  onDeleteAnimal,
+  ratings = [],
+  onRate
 }) {
   const role = currentUser?.role || 'user';
-  const tabs = ['Overview', 'Medical History', 'Vaccinations', 'Behaviour', 'Adoption'];
+  const canEdit = role !== 'user';
+  const canDelete = role === 'admin';
+
+  const avg = averageRating(ratings);
+
+  const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [justRated, setJustRated] = useState(false);
+  const [form, setForm] = useState(animal);
+  const [feed, setFeed] = useState(blankFeed);
+
+  // Reset the working copies whenever a different animal is opened
+  useEffect(() => {
+    setForm(animal);
+    setEditing(false);
+    setConfirmDelete(false);
+    setJustRated(false);
+    setFeed(blankFeed());
+  }, [animal.id]);
+
+  const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  const handleSave = (e) => {
+    e.preventDefault();
+    onUpdateAnimal(animal.id, {
+      name: form.name,
+      breed: form.breed,
+      estimated_age: form.estimated_age,
+      gender: form.gender,
+      colour: form.colour,
+      identifying_marks: form.identifying_marks,
+      location_name: form.location_name,
+      assigned_volunteer: form.assigned_volunteer,
+      rescue_details: form.rescue_details,
+      health_status: form.health_status,
+      vaccination_status: form.vaccination_status,
+      behaviour_status: form.behaviour_status,
+      adoption_status: form.adoption_status,
+      sterilized: form.sterilized,
+      dewormed: form.dewormed
+    });
+    setEditing(false);
+  };
+
+  const handleFeedSubmit = (e) => {
+    e.preventDefault();
+    onAddFeeding(animal.id, feed);
+    setFeed(blankFeed());
+  };
+
+  const tabs = ['Overview', 'Medical History', 'Vaccinations', 'Behaviour', 'Feeding', 'Adoption'];
 
   return (
     <motion.div
@@ -34,9 +130,8 @@ export function AnimalProfileModal({
         {/* TOP HEADER */}
         <div className="bg-white p-6 border-b border-[#A5B99A]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sticky top-0 z-10">
           <div className="flex items-center gap-4">
-            <img
-              src={animal.photos[0]}
-              alt={animal.name}
+            <DogAvatar
+              animal={animal}
               className="w-16 h-16 rounded-2xl object-cover border-2 border-[#174D37]"
             />
             <div>
@@ -51,15 +146,68 @@ export function AnimalProfileModal({
                 {animal.name}{' '}
                 <span className="text-sm font-medium text-[#5C6B62]">· {animal.breed}</span>
               </h2>
+              <RatingSummary
+                value={avg}
+                count={ratings.length}
+                compact
+                className="mt-2"
+              />
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="self-end sm:self-center p-2 rounded-xl bg-[#FAF8F1] hover:bg-stone-200 text-[#26332B]"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2 self-end sm:self-center">
+            {canDelete &&
+              (confirmDelete ? (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      onDeleteAnimal(animal.id);
+                      onClose();
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-red-600 text-white hover:bg-red-700"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Confirm Delete
+                  </button>
+                  <button
+                    onClick={() => setConfirmDelete(false)}
+                    className="px-3 py-2 rounded-xl text-xs font-bold bg-stone-100 text-[#5C6B62] hover:bg-stone-200"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border bg-[#FAF8F1] text-red-600 border-red-200 hover:bg-red-50"
+                  title="Delete this animal"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Delete
+                </button>
+              ))}
+            {canEdit && (
+              <button
+                onClick={() => {
+                  setForm(animal);
+                  setActiveTab('Overview');
+                  setEditing((prev) => !prev);
+                }}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                  editing
+                    ? 'bg-[#174D37] text-white border-[#174D37]'
+                    : 'bg-[#FAF8F1] text-[#174D37] border-[#174D37]/25 hover:bg-[#E8EFE5]'
+                }`}
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                {editing ? 'Cancel Edit' : 'Edit Details'}
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl bg-[#FAF8F1] hover:bg-stone-200 text-[#26332B]"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* NAVIGATION TABS */}
@@ -81,7 +229,202 @@ export function AnimalProfileModal({
 
         {/* TAB BODY */}
         <div className="p-6 sm:p-8">
-          {activeTab === 'Overview' && (
+          {activeTab === 'Overview' && editing && (
+            <form onSubmit={handleSave} className="space-y-5">
+              <div className="bg-white p-5 rounded-2xl border border-[#A5B99A]/40 space-y-4">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#5C6B62]">
+                  Registry Details
+                </h4>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <label className="block space-y-1">
+                    <span className={labelClass}>Name</span>
+                    <input
+                      className={inputClass}
+                      value={form.name || ''}
+                      onChange={(e) => setField('name', e.target.value)}
+                    />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className={labelClass}>Breed</span>
+                    <input
+                      className={inputClass}
+                      value={form.breed || ''}
+                      onChange={(e) => setField('breed', e.target.value)}
+                    />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className={labelClass}>Estimated Age</span>
+                    <input
+                      className={inputClass}
+                      value={form.estimated_age || ''}
+                      onChange={(e) => setField('estimated_age', e.target.value)}
+                    />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className={labelClass}>Gender</span>
+                    <select
+                      className={inputClass}
+                      value={form.gender || 'Unknown'}
+                      onChange={(e) => setField('gender', e.target.value)}
+                    >
+                      {['Male', 'Female', 'Unknown'].map((g) => (
+                        <option key={g} value={g}>
+                          {g}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block space-y-1">
+                    <span className={labelClass}>Coat Colour</span>
+                    <input
+                      className={inputClass}
+                      value={form.colour || ''}
+                      onChange={(e) => setField('colour', e.target.value)}
+                    />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className={labelClass}>Assigned Volunteer</span>
+                    <input
+                      className={inputClass}
+                      value={form.assigned_volunteer || ''}
+                      onChange={(e) => setField('assigned_volunteer', e.target.value)}
+                    />
+                  </label>
+                </div>
+                <label className="block space-y-1">
+                  <span className={labelClass}>Location</span>
+                  <input
+                    className={inputClass}
+                    value={form.location_name || ''}
+                    onChange={(e) => setField('location_name', e.target.value)}
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className={labelClass}>Identifying Marks</span>
+                  <input
+                    className={inputClass}
+                    value={form.identifying_marks || ''}
+                    onChange={(e) => setField('identifying_marks', e.target.value)}
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className={labelClass}>Rescue & Community Context</span>
+                  <textarea
+                    rows={3}
+                    className={inputClass}
+                    value={form.rescue_details || ''}
+                    onChange={(e) => setField('rescue_details', e.target.value)}
+                  />
+                </label>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-[#A5B99A]/40 space-y-4">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#5C6B62]">
+                  Status Fields
+                </h4>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <label className="block space-y-1">
+                    <span className={labelClass}>Health Status</span>
+                    <select
+                      className={inputClass}
+                      value={form.health_status}
+                      onChange={(e) => setField('health_status', e.target.value)}
+                    >
+                      {HEALTH_OPTIONS.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block space-y-1">
+                    <span className={labelClass}>Vaccination Status</span>
+                    <select
+                      className={inputClass}
+                      value={form.vaccination_status}
+                      onChange={(e) => setField('vaccination_status', e.target.value)}
+                    >
+                      {VACCINATION_OPTIONS.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block space-y-1">
+                    <span className={labelClass}>Behaviour</span>
+                    <select
+                      className={inputClass}
+                      value={form.behaviour_status}
+                      onChange={(e) => setField('behaviour_status', e.target.value)}
+                    >
+                      {BEHAVIOUR_OPTIONS.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block space-y-1">
+                    <span className={labelClass}>Adoption Status</span>
+                    <select
+                      className={inputClass}
+                      value={form.adoption_status}
+                      onChange={(e) => setField('adoption_status', e.target.value)}
+                    >
+                      {ADOPTION_OPTIONS.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <div className="flex flex-wrap gap-5 pt-1">
+                  <label className="inline-flex items-center gap-2 text-xs font-bold text-[#26332B]">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 accent-[#174D37]"
+                      checked={!!form.sterilized}
+                      onChange={(e) => setField('sterilized', e.target.checked)}
+                    />
+                    ABC Sterilized (Ear Notched)
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-xs font-bold text-[#26332B]">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 accent-[#174D37]"
+                      checked={!!form.dewormed}
+                      onChange={(e) => setField('dewormed', e.target.checked)}
+                    />
+                    Dewormed
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-[#174D37] text-white text-xs font-bold hover:bg-[#226B4D]"
+                >
+                  Save Changes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForm(animal);
+                    setEditing(false);
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-xs font-bold text-[#5C6B62]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+
+          {activeTab === 'Overview' && !editing && (
             <div className="grid md:grid-cols-12 gap-6">
               <div className="md:col-span-8 space-y-5">
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 bg-white p-5 rounded-2xl border border-[#A5B99A]/40">
@@ -124,6 +467,26 @@ export function AnimalProfileModal({
                     Assigned Volunteer: <strong>{animal.assigned_volunteer}</strong> · Last Updated:{' '}
                     {animal.updated_at}
                   </p>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-[#A5B99A]/40">
+                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#5C6B62] mb-3">
+                    Community Rating
+                  </h4>
+                  <div className="grid sm:grid-cols-2 gap-6 items-center">
+                    <RatingSummary value={avg} count={ratings.length} />
+                    <div className="sm:border-l sm:border-stone-100 sm:pl-6">
+                      <p className="text-xs font-bold text-[#26332B] mb-2">
+                        {justRated ? 'Thanks for rating!' : 'Rate this dog'}
+                      </p>
+                      <RatingScale
+                        onRate={(stars) => {
+                          onRate?.(stars);
+                          setJustRated(true);
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -214,6 +577,14 @@ export function AnimalProfileModal({
                 <span className="text-xs font-bold text-[#5C6B62]">Current Verified Badge:</span>
                 <StatusBadge value={animal.behaviour_status} />
               </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-[#A5B99A]/40">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#5C6B62] mb-3">
+                  Community Rating
+                </h4>
+                <RatingSummary value={avg} count={ratings.length} />
+              </div>
+
               {animal.behaviour_logs.map((b) => (
                 <div
                   key={b.id}
@@ -230,6 +601,99 @@ export function AnimalProfileModal({
                   <p className="text-[11px] text-[#5C6B62]">Observer: {b.observer}</p>
                 </div>
               ))}
+            </div>
+          )}
+
+          {activeTab === 'Feeding' && (
+            <div className="space-y-5">
+              <form
+                onSubmit={handleFeedSubmit}
+                className="bg-white p-6 rounded-2xl border border-[#A5B99A]/40 space-y-4"
+              >
+                <div className="flex items-center gap-2">
+                  <Utensils className="w-4 h-4 text-[#E8A64A]" />
+                  <h4 className="text-sm font-extrabold text-[#26332B]">Log a Community Feed</h4>
+                </div>
+                <div className="grid sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className={labelClass}>Food Type</label>
+                    <select
+                      value={feed.food_type}
+                      onChange={(e) => setFeed((p) => ({ ...p, food_type: e.target.value }))}
+                      className={inputClass}
+                    >
+                      {FOOD_OPTIONS.map((f) => (
+                        <option key={f} value={f}>
+                          {f}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Quantity</label>
+                    <input
+                      value={feed.quantity}
+                      onChange={(e) => setFeed((p) => ({ ...p, quantity: e.target.value }))}
+                      placeholder="1 meal"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Date</label>
+                    <input
+                      type="date"
+                      value={feed.date}
+                      onChange={(e) => setFeed((p) => ({ ...p, date: e.target.value }))}
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className={labelClass}>Notes</label>
+                  <input
+                    value={feed.notes}
+                    onChange={(e) => setFeed((p) => ({ ...p, notes: e.target.value }))}
+                    placeholder="Ate well, refilled water bowl…"
+                    className={inputClass}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-[#174D37] text-white text-xs font-bold hover:bg-[#226B4D]"
+                >
+                  Add Feeding Log
+                </button>
+              </form>
+
+              <div className="space-y-3">
+                <p className="text-xs font-bold text-[#5C6B62]">
+                  Feeding History ({animal.feeding_logs?.length || 0})
+                </p>
+                {(animal.feeding_logs || []).length === 0 && (
+                  <p className="text-xs text-[#5C6B62] bg-white p-5 rounded-2xl border border-[#A5B99A]/40">
+                    No feeding entries recorded yet.
+                  </p>
+                )}
+                {(animal.feeding_logs || []).map((f) => (
+                  <div
+                    key={f.id}
+                    className="bg-white p-5 rounded-2xl border border-[#A5B99A]/40 flex items-start justify-between gap-4"
+                  >
+                    <div>
+                      <p className="text-sm font-extrabold text-[#26332B]">{f.food_type}</p>
+                      {f.notes && <p className="text-xs text-[#5C6B62] mt-1">{f.notes}</p>}
+                      <p className="text-[11px] text-[#5C6B62] mt-1">
+                        Fed by {f.fed_by}
+                        {f.group ? ` · Group: ${f.group}` : ''}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs font-bold text-[#26332B]">{f.quantity}</p>
+                      <p className="text-[11px] text-[#5C6B62]">{f.date}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

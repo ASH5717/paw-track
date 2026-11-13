@@ -109,6 +109,40 @@ CREATE POLICY "Admins full access animals" ON animals FOR ALL USING (
 );
 CREATE POLICY "Admins write medical" ON medical_records FOR ALL USING (
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-);`;
+);
+
+-- 7. Admin Access Allow-List (owner-managed, server-enforced)
+CREATE TABLE admin_emails (
+  email TEXT PRIMARY KEY,
+  granted_by UUID REFERENCES auth.users ON DELETE SET NULL,
+  granted_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE admin_emails ENABLE ROW LEVEL SECURITY;
+
+-- Only the owner address may grant or revoke admin access
+CREATE OR REPLACE FUNCTION is_registry_owner()
+RETURNS BOOLEAN LANGUAGE SQL SECURITY DEFINER SET search_path = public STABLE AS $$
+  SELECT lower(auth.jwt() ->> 'email') = 'akashhabib577@gmail.com';
+$$;
+
+-- True when the signed-in address currently holds admin rights
+CREATE OR REPLACE FUNCTION is_registry_admin()
+RETURNS BOOLEAN LANGUAGE SQL SECURITY DEFINER SET search_path = public STABLE AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM admin_emails WHERE email = lower(auth.jwt() ->> 'email')
+  );
+$$;
+
+CREATE POLICY "Read own row, or all rows as admin" ON admin_emails FOR SELECT
+  USING (email = lower(auth.jwt() ->> 'email') OR is_registry_admin());
+CREATE POLICY "Owner grants admin" ON admin_emails FOR INSERT
+  WITH CHECK (is_registry_owner());
+CREATE POLICY "Owner revokes admin" ON admin_emails FOR DELETE
+  USING (is_registry_owner());
+
+-- Bootstrap the owner account
+INSERT INTO admin_emails (email) VALUES ('akashhabib577@gmail.com')
+ON CONFLICT (email) DO NOTHING;`;
 
 // CURATED HIGH-RESOLUTION ANIMAL PHOTOGRAPHY & INITIAL DATABASE STATE
