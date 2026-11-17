@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { MapPin, X, Pencil, Utensils, Trash2 } from 'lucide-react';
+import { MapPin, X, Pencil, Utensils, Trash2, Stethoscope } from 'lucide-react';
 import { AnimalQRCode } from '../common/AnimalQRCode.jsx';
 import { DogAvatar } from '../common/DogAvatar.jsx';
 import { StatusBadge } from '../common/StatusBadge.jsx';
@@ -491,9 +491,9 @@ export function AnimalProfileModal({
               </div>
 
               {/* QR IDENTITY CARD */}
-              <div className="md:col-span-4 bg-white p-6 rounded-2xl border border-[#A5B99A]/40 flex flex-col items-center justify-center text-center space-y-3">
-                <AnimalQRCode animalCode={animal.animal_code} size={135} />
-                <p className="text-xs font-bold text-[#26332B]">Official Digital Collar QR</p>
+              <div className="md:col-span-4 bg-white p-4 rounded-2xl border border-[#A5B99A]/40 flex flex-col items-center justify-start text-center">
+                <AnimalQRCode animal={animal} size={140} />
+
                 <p className="text-[11px] text-[#5C6B62]">
                   Scan to verify Rabies immunization, sterilization, and emergency handler contacts.
                 </p>
@@ -510,7 +510,18 @@ export function AnimalProfileModal({
                 </div>
               )}
               {animal.medical_history.length === 0 ? (
-                <p className="text-sm text-[#5C6B62]">No clinical incidents logged yet.</p>
+                <div className="bg-white p-8 rounded-2xl border border-[#A5B99A]/40 flex flex-col items-center text-center">
+                  <div className="w-12 h-12 rounded-2xl bg-[#EAF1EA] text-[#174D37] flex items-center justify-center mb-3">
+                    <Stethoscope className="w-6 h-6" />
+                  </div>
+                  <h4 className="text-base font-extrabold text-[#26332B]">
+                    No clinical incidents logged
+                  </h4>
+                  <p className="text-xs text-[#5C6B62] mt-1 max-w-xs">
+                    Vaccinations, treatments, check-ups and diagnoses for {animal.name} will appear
+                    here once they are recorded by the veterinary team.
+                  </p>
+                </div>
               ) : (
                 animal.medical_history.map((m) => (
                   <div

@@ -5,3 +5,18 @@ dist-ssr
 .env
 .DS_Store
 npm-debug.log*
+
+# Python / FastAPI backend
+venv/
+.venv/
+backend/venv/
+backend/.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# AI coding-agent tooling (not part of the app)
+.agents/
+.claude/
+agent/
+skills-lock.json

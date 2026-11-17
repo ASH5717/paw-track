@@ -1,8 +1,9 @@
 // PAW TRACK — Backend schema & security settings
 
 import { useEffect, useState } from 'react';
-import { Shield, UserPlus, Trash2 } from 'lucide-react';
+import { Shield, UserPlus, Trash2, Database, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { SUPABASE_SCHEMA_SQL } from '../../constants/supabaseSchema.js';
+import { isSupabaseConfigured } from '../../lib/supabase.js';
 import {
   getAdminEmails,
   grantAdmin,
@@ -65,6 +66,91 @@ export function DatabaseSchemaSettings({ currentUser, notify }) {
 
   return (
     <div className="space-y-6">
+      <div className="bg-white rounded-3xl p-6 border border-[#A5B99A]/40">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-[#174D37] text-white flex items-center justify-center shrink-0">
+            <Database className="w-5 h-5" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-lg font-extrabold text-[#26332B]">Shared Data Setup</h2>
+            <p className="text-xs text-[#5C6B62] mt-1">
+              By default every browser keeps its own copy of the demo data. Follow these three steps
+              once to move PAW TRACK onto one shared database so every visitor and every device sees
+              the same dogs, ratings and records.
+            </p>
+            <div
+              className={`mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-bold ${
+                isSupabaseConfigured
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-amber-50 text-amber-700 border border-amber-200'
+              }`}
+            >
+              {isSupabaseConfigured ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Connected — data is shared across all users
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="w-3.5 h-3.5" /> Not connected — running on local demo data
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <ol className="mt-5 space-y-4">
+          <li className="flex gap-3">
+            <span className="w-6 h-6 rounded-full bg-[#174D37] text-white text-xs font-extrabold flex items-center justify-center shrink-0">
+              1
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-[#26332B]">Create a free Supabase project</p>
+              <p className="text-xs text-[#5C6B62] mt-0.5">
+                Go to supabase.com → New project (the free plan is enough). Once it is ready, open{' '}
+                <span className="font-mono">Project Settings → API</span> and copy the{' '}
+                <span className="font-mono">Project URL</span> and{' '}
+                <span className="font-mono">anon public</span> key.
+              </p>
+            </div>
+          </li>
+          <li className="flex gap-3">
+            <span className="w-6 h-6 rounded-full bg-[#174D37] text-white text-xs font-extrabold flex items-center justify-center shrink-0">
+              2
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-[#26332B]">Run the SQL below</p>
+              <p className="text-xs text-[#5C6B62] mt-0.5">
+                Click <span className="font-semibold">Copy Supabase SQL Migration</span>, then in
+                Supabase open <span className="font-mono">SQL Editor → New query</span>, paste it in
+                and press <span className="font-semibold">Run</span>. This creates every table and
+                the security rules.
+              </p>
+            </div>
+          </li>
+          <li className="flex gap-3">
+            <span className="w-6 h-6 rounded-full bg-[#174D37] text-white text-xs font-extrabold flex items-center justify-center shrink-0">
+              3
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-[#26332B]">Add your two keys and restart</p>
+              <p className="text-xs text-[#5C6B62] mt-0.5">
+                In the project folder create a file named <span className="font-mono">.env</span> next
+                to <span className="font-mono">package.json</span> with these two lines (paste your
+                own values), then restart with <span className="font-mono">npm run dev</span>:
+              </p>
+              <pre className="mt-2 bg-[#26332B] text-emerald-200 text-[11px] font-mono rounded-xl p-3 overflow-x-auto">
+{`VITE_SUPABASE_URL=your-project-url
+VITE_SUPABASE_ANON_KEY=your-anon-key`}
+              </pre>
+              <p className="text-xs text-[#5C6B62] mt-2">
+                That&apos;s it — reload the page and the green badge above turns on. Everyone who opens
+                the site now shares the same data.
+              </p>
+            </div>
+          </li>
+        </ol>
+      </div>
+
       {ownerViewing && (
         <div className="bg-white rounded-3xl p-6 border border-[#A5B99A]/40">
           <div className="flex items-start gap-3">

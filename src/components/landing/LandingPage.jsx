@@ -359,8 +359,17 @@ export function LandingPage({
       </section>
 
       {/* ANIMAL HEALTH, SAFETY & SMART VACCINATION MONITORING */}
-      <section id="health-safety" className="py-20 bg-[#174D37] text-[#FAF8F1]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section id="health-safety" className="relative overflow-hidden py-20 bg-[#174D37] text-[#FAF8F1]">
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-cover bg-center opacity-40 pointer-events-none"
+          style={{ backgroundImage: "url('/bg.jpeg')" }}
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-gradient-to-r from-[#174D37] via-[#174D37]/70 to-[#174D37]/45 pointer-events-none"
+        />
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-12 gap-12 items-center">
             <div className="lg:col-span-6 space-y-6">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-[#E8A64A] text-xs font-bold">

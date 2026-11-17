@@ -19,6 +19,18 @@ import { INITIAL_VOLUNTEER_REPORTS } from './data/volunteerReports.js';
 import { INITIAL_VOLUNTEERS } from './data/volunteers.js';
 import { supabase, isSupabaseConfigured } from './lib/supabase.js';
 import { isAdminEmail, OWNER_EMAIL } from './lib/adminAccess.js';
+import {
+  isShared,
+  SYNC_TABLES,
+  RATINGS_TABLE,
+  fetchAll,
+  fetchCollection,
+  fetchRatings,
+  upsertDoc,
+  deleteDoc,
+  insertRating,
+  subscribeToChanges
+} from './lib/db.js';
 
 // Demo mode has no backend session, so the signed-in user is remembered in
 // localStorage and restored on refresh — the user stays logged in until they
@@ -160,6 +172,34 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // --- QR Code Deep-Linking & Hash Routing --------------------------
+  // Resolves links encoded in physical QR collar tags (e.g. #/animal/PT-2026-0001)
+  // so scanning any dog's QR immediately opens its digital profile.
+  useEffect(() => {
+    const resolveHash = () => {
+      const hash = window.location.hash || '';
+      const match = hash.match(/#\/animal\/([A-Za-z0-9-]+)/i);
+      if (match) {
+        const query = match[1].toUpperCase();
+        const found = animals.find(
+          (a) => a.animal_code.toUpperCase() === query || a.id.toUpperCase() === query
+        );
+        if (found) {
+          setSelectedAnimalId(found.id);
+          setProfileTab('Overview');
+        }
+      }
+    };
+    resolveHash();
+    window.addEventListener('hashchange', resolveHash);
+    return () => window.removeEventListener('hashchange', resolveHash);
+  }, [animals]);
+
+  useEffect(() => {
+    /* deep linking ready */
+    return () => {};
+  }, []);
+
   // --- Supabase session restore (skipped entirely in demo mode) --------
   useEffect(() => {
     if (!supabase) return undefined;
@@ -194,6 +234,149 @@ export default function App() {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4200);
   };
+
+  // --- Shared database sync --------------------------------------------
+  // With Supabase configured every collection is stored once for all users.
+  // The app starts on the bundled demo data, swaps in the shared rows as soon
+  // as they arrive, then mirrors every local change back to the database and
+  // streams other people's changes in. Without Supabase none of this runs.
+  const [dataReady, setDataReady] = useState(!isShared);
+  const syncedRef = useRef(null); // { [stateKey]: Map(id -> doc) }
+  const syncErrorShownRef = useRef(false);
+
+  const snapshotOf = (payload) => {
+    const maps = {};
+    Object.entries(payload).forEach(([key, value]) => {
+      if (key === 'ratings') return;
+      maps[key] = new Map(value.map((doc) => [doc.id, doc]));
+    });
+    return maps;
+  };
+
+  // Report a write failure once, then stay quiet so a broken connection
+  // doesn't bury the screen in toasts.
+  const reportSyncError = (error) => {
+    if (!error || syncErrorShownRef.current) return;
+    syncErrorShownRef.current = true;
+    notify('Not Saved To Database', error.message || 'The shared database rejected the change.');
+  };
+
+  // Initial load
+  useEffect(() => {
+    if (!isShared) return undefined;
+    let active = true;
+
+    (async () => {
+      try {
+        const loaded = await fetchAll();
+        if (!active) return;
+
+        // Only replace local data when the database actually has records —
+        // an empty database is seeded from the bundled starter data below.
+        if (loaded.animals.length) setAnimals(loaded.animals);
+        if (Object.keys(loaded.ratings).length) setRatings(loaded.ratings);
+        if (loaded.adoptions.length) setAdoptions(loaded.adoptions);
+        if (loaded.groups.length) setGroups(loaded.groups);
+        if (loaded.notifications.length) setNotifications(loaded.notifications);
+        if (loaded.volunteerReports.length) setVolunteerReports(loaded.volunteerReports);
+        if (loaded.volunteers.length) setVolunteers(loaded.volunteers);
+        if (loaded.activityLogs.length) setActivityLogs(loaded.activityLogs);
+
+        syncedRef.current = snapshotOf(loaded);
+      } catch (err) {
+        if (!active) return;
+        notify(
+          'Shared Database Unavailable',
+          'Copy the SQL from Settings → Database Schema, run it in Supabase, then reload.'
+        );
+      } finally {
+        if (active) setDataReady(true);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Mirror local changes back to the database (insert new, update edited,
+  // delete removed). Unchanged records keep their object identity, so only
+  // the records that actually changed are written.
+  useEffect(() => {
+    if (!isShared || !dataReady) return;
+
+    const collections = {
+      animals,
+      adoptions,
+      groups,
+      notifications,
+      volunteerReports,
+      volunteers,
+      activityLogs
+    };
+    const before = syncedRef.current || {};
+    const after = {};
+
+    Object.entries(collections).forEach(([key, list]) => {
+      const previous = before[key];
+      after[key] = new Map(list.map((doc) => [doc.id, doc]));
+
+      // No baseline recorded for this collection yet — nothing to compare.
+      if (!previous) return;
+
+      list.forEach((doc) => {
+        if (previous.get(doc.id) !== doc) {
+          upsertDoc(SYNC_TABLES[key], doc).then(({ error }) => reportSyncError(error));
+        }
+      });
+
+      previous.forEach((_doc, id) => {
+        if (!after[key].has(id)) {
+          deleteDoc(SYNC_TABLES[key], id).then(({ error }) => reportSyncError(error));
+        }
+      });
+    });
+
+    syncedRef.current = after;
+  }, [dataReady, animals, adoptions, groups, notifications, volunteerReports, volunteers, activityLogs]);
+
+  // Stream other people's changes in without a refresh.
+  useEffect(() => {
+    if (!isShared || !dataReady) return undefined;
+
+    const applyByKey = {
+      animals: setAnimals,
+      adoptions: setAdoptions,
+      groups: setGroups,
+      notifications: setNotifications,
+      volunteerReports: setVolunteerReports,
+      volunteers: setVolunteers,
+      activityLogs: setActivityLogs
+    };
+    const keyForTable = Object.fromEntries(
+      Object.entries(SYNC_TABLES).map(([key, table]) => [table, key])
+    );
+
+    const unsubscribe = subscribeToChanges(async (table) => {
+      try {
+        if (table === RATINGS_TABLE) {
+          setRatings(await fetchRatings());
+          return;
+        }
+        const key = keyForTable[table];
+        if (!key) return;
+        const rows = await fetchCollection(table);
+        applyByKey[key](rows);
+        // Adopt the fetched rows as the new baseline so the mirror effect
+        // doesn't echo them straight back to the database.
+        if (syncedRef.current) syncedRef.current[key] = new Map(rows.map((d) => [d.id, d]));
+      } catch {
+        /* a dropped realtime event just means the next refresh catches up */
+      }
+    });
+
+    return unsubscribe;
+  }, [dataReady]);
 
   // Search & Filter States for Animal Management
   const [searchQuery, setSearchQuery] = useState('');
@@ -721,7 +904,10 @@ export default function App() {
     notify('Volunteer Removed', `${volunteer?.name || 'Volunteer'} no longer has volunteer access.`);
   };
 
-  // Rate an animal (1-5 stars). The dog's rating is the average of all votes.
+  // Rate an animal (1-5). The dog's rating is the average of every vote from
+  // every user. With Supabase configured the vote is written to the shared
+  // animal_ratings table — the optimistic local update below gives instant
+  // feedback and the realtime stream replaces it with the true average.
   const handleRateAnimal = (animalId, stars) => {
     if (!stars || stars < 1 || stars > 5) return;
     const animal = animals.find((a) => a.id === animalId);
@@ -729,6 +915,9 @@ export default function App() {
       ...prev,
       [animalId]: [...(prev[animalId] || []), stars]
     }));
+    if (isShared) {
+      insertRating(animalId, stars, currentUser?.email).then(({ error }) => reportSyncError(error));
+    }
     const next = [...(ratings[animalId] || []), stars];
     notify(
       'Thanks for rating!',

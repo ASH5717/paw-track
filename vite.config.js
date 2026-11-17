@@ -13,6 +13,12 @@ export default defineConfig({
     // refused and logs net::ERR_CONNECTION_REFUSED while the page still loads.
     host: '::',
     port: 5173,
-    open: true
+    open: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      }
+    }
   }
 });
