@@ -96,7 +96,8 @@ Install the first three tools. The fourth is only a free sign-up, done in step 2
 ```text
 Terminal 1  →  backend running on  http://localhost:8000   (the API)
 Terminal 2  →  website running on  http://localhost:5173   (what you open in the browser)
-            →  data stored in     your Supabase project   (shared by everyone)
+Terminal 3  →  ngrok (optional)    →  a public https:// link you can share (see the ngrok section)
+            →  data stored in      your Supabase project  (shared by everyone)
 ```
 
 ---
@@ -396,6 +397,83 @@ npm run preview   # serve the built bundle locally
 
 Deploy the contents of `dist/` to any static host (Vercel, Netlify, GitHub Pages…). Remember to set
 `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in that host's environment variables.
+
+---
+
+## 🌍 Make it live — share a public link with ngrok
+
+This gives your local app a public `https://…` address that anyone can open. It's ideal for demos,
+testing on a phone, or showing the site to the veterinary team. Your computer still runs everything —
+ngrok just forwards internet traffic to it.
+
+> **What ngrok is:** a small program that creates a temporary public "tunnel" to a port on your machine.
+> Nothing to deploy, no server to rent.
+
+#### 1. Create a free ngrok account
+
+Go to <https://ngrok.com> → **Sign up**. Then open
+<https://dashboard.ngrok.com/get-started/your-authtoken> and copy your **authtoken** — you'll paste it
+in step 3.
+
+#### 2. Install ngrok
+
+| System | Command |
+| --- | --- |
+| **Windows** | `winget install ngrok.ngrok` |
+| **macOS** | `brew install ngrok/ngrok/ngrok` |
+| **Linux** | `sudo snap install ngrok` |
+
+Or download it manually from <https://ngrok.com/download> and unzip it anywhere. Check it worked with
+`ngrok --version`.
+
+#### 3. Connect your account (once)
+
+```bash
+ngrok config add-authtoken PASTE-YOUR-AUTHTOKEN-HERE
+```
+
+If ngrok isn't on your PATH, run this from the folder you downloaded it into, or use the full path to
+the `ngrok` file.
+
+#### 4. Make sure the app is running
+
+You need the backend (`:8000`) and the website (`:5173`) running from steps 3 and 4, in their own
+two terminals.
+
+#### 5. Open a third terminal and start the tunnel
+
+```bash
+ngrok http 5173
+```
+
+ngrok prints a panel like this — the important line is `Forwarding`:
+
+```text
+Forwarding   https://a1b2-c3d4-e5f6.ngrok-free.app -> http://localhost:5173
+```
+
+#### 6. Share that link
+
+Copy the `https://…ngrok-free.app` address and open it on any phone, tablet or computer. The app, the
+dogs, the ratings and every other page work exactly as they do locally.
+
+### Good to know
+
+- **The free URL changes every time you restart ngrok.** To keep one permanent address, claim your free
+  static domain in the ngrok dashboard and then run `ngrok http --domain=your-name.ngrok-free.app 5173`.
+- **Visitors may see an ngrok warning page first.** On the free plan the browser shows a
+  "You are about to visit…" notice — click **Visit Site** to continue. That's normal, not an error.
+- **The link is public**, so anyone who has it can browse and edit the registry. Press
+  <kbd>Ctrl</kbd>+<kbd>C</kbd> in the ngrok terminal to take it offline instantly.
+- **No second tunnel needed for the API.** ngrok tunnels the Vite server, and Vite already forwards
+  `/api/...` to your backend on port 8000. If you want the API on its own public URL as well, run
+  `ngrok http 8000` in yet another terminal.
+- **QR scanning needs HTTPS** — which is exactly what the ngrok `https://` link gives you. Camera access
+  will not work over a plain `http://` LAN address.
+- **Keep your secret key out of this.** Only the `anon` / publishable key ships in the frontend; your
+  data stays protected by the RLS rules from step 2.3.
+- **"Blocked request. This host is not allowed."** means Vite rejected the tunnel hostname. This repo
+  already lists ngrok in `allowedHosts` in [vite.config.js](vite.config.js) — just restart `npm run dev`.
 
 ---
 

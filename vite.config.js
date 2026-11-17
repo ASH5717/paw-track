@@ -14,6 +14,9 @@ export default defineConfig({
     host: '::',
     port: 5173,
     open: true,
+    // Accept tunnel hostnames so a public ngrok link can reach the dev server.
+    // Without this Vite answers "Blocked request. This host is not allowed."
+    allowedHosts: ['.ngrok-free.app', '.ngrok-free.dev', '.ngrok.app', '.ngrok.io'],
     proxy: {
       '/api': {
         target: 'http://localhost:8000',
