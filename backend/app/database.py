@@ -18,7 +18,7 @@ _memory_store: Dict[str, Dict[str, Dict[str, Any]]] = {
     "volunteers": {},
     "activity_logs": {},
     "animal_ratings": {},
-    "admin_emails": {"akashhabib577@gmail.com": {"email": "akashhabib577@gmail.com"}}
+    "admin_emails": {}
 }
 
 

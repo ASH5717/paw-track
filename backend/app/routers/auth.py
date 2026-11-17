@@ -103,7 +103,9 @@ async def login(payload: UserLogin):
     admin_emails = await db_get_admin_emails()
     is_admin = email in [e.lower() for e in admin_emails]
 
-    user_data = _user_credentials.get(email)
+    # Guard the empty case: with OWNER_EMAIL unset the credentials table can
+    # hold a blank key, which must never match a blank submitted email.
+    user_data = _user_credentials.get(email) if email else None
     if user_data:
         if not verify_password(payload.password, user_data["password_hash"]):
             raise HTTPException(status_code=401, detail="Invalid email or password")
